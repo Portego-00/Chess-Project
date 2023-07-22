@@ -116,20 +116,45 @@ public class MyBot : IChessBot
 
     int EvaluateBoard(Board board, bool isWhiteBot)
     {
+        // Material count
         int whiteMaterial = CountMaterial(board, pieceValues, true);
         int blackMaterial = CountMaterial(board, pieceValues, false);
+        int materialScore = whiteMaterial - blackMaterial;
 
-        // Simple evaluation: difference in material
-        if (isWhiteBot)
+        // Piece mobility
+        int whiteMobility = CountMobility(board, true);
+        int blackMobility = CountMobility(board, false);
+        int mobilityScore = whiteMobility - blackMobility;
+
+        // Combine all factors with appropriate weights
+        int totalScore = materialScore + 3 * mobilityScore;
+
+        // Flip the score if the AI (MyBot) is playing as black to match the Minimax algorithm's behavior
+        if (!isWhiteBot)
         {
-            return whiteMaterial - blackMaterial;
+            totalScore = -totalScore;
         }
-        else
-        {
-            return blackMaterial - whiteMaterial;
-        }
+
+        return totalScore;
     }
+    
+    int CountMobility(Board board, bool isWhite)
+    {
+        int mobility = 0;
+        Move[] allMoves = board.GetLegalMoves();
 
+        foreach (Move move in allMoves)
+        {
+            Piece piece = board.GetPiece(move.StartSquare);
+            if (piece != null && piece.IsWhite == isWhite)
+            {
+                mobility++;
+            }
+        }
+
+        return mobility;
+    }
+    
     bool MoveIsCheckmate(Board board, Move move)
     {
         board.MakeMove(move);
