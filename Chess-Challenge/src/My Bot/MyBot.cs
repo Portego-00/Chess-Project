@@ -27,7 +27,7 @@ public class MyBot : IChessBot
             
             // Evaluate the board for all the moves
             board.MakeMove(move);
-            int score = EvaluateBoard(board, pieceValues, isWhiteBot);
+            int score = -NegaMax(board, MAX_DEPTH - 1, int.MinValue + 1, int.MaxValue - 1, !isWhiteBot);
             board.UndoMove(move);
             
             // If the score is better than the current best move, update the best move
@@ -50,9 +50,32 @@ public class MyBot : IChessBot
         return isCheckmate;
     }
     
+    // Function Negamax with alpha-beta pruning
+    int NegaMax(Board board, int depth, int alpha, int beta, bool isWhite)
+    {
+        if (depth == 0) { return EvaluateBoard(board, isWhite); }
+        
+        int bestScore = int.MinValue;
+        Move[] allMoves = board.GetLegalMoves();
+
+        foreach (Move move in allMoves)
+        {
+            board.MakeMove(move);
+            int score = -NegaMax(board, depth - 1, -beta, -alpha, !isWhite);
+            board.UndoMove(move);
+            
+            bestScore = Math.Max(bestScore, score);
+            alpha = Math.Max(alpha, score);
+            
+            if (alpha >= beta) { break; }
+        }
+        
+        return bestScore;
+    }
+    
     
     // Function to evaluate the board
-    int EvaluateBoard(Board board, int[] piecesValue, bool isWhite)
+    int EvaluateBoard(Board board, bool isWhite)
     {
         // Get the value of the pieces for white and for black
         int whiteMaterial = CountMaterial(board, true);
