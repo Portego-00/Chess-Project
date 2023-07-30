@@ -6,14 +6,17 @@ using ChessChallenge.API;
 
 public class MyBot : IChessBot
 {
-    const int MAX_DEPTH = 5;
+    const int MAX_DEPTH = 4;
     int[] pieceValues = { 0, 100, 300, 300, 500, 900, 10000 };
+    
+    private Dictionary<ulong, TranspositionEntry> TranspositionTable { get; set; }
     
     public int MoveCount { get; private set; }
 
     public MyBot()
     {
         MoveCount = 0;
+        TranspositionTable = new Dictionary<ulong, TranspositionEntry>();
     }
 
     public Move Think(Board board, Timer timer)
@@ -63,6 +66,16 @@ public class MyBot : IChessBot
     // Function Negamax with alpha-beta pruning
     public int NegaMax(Board board, int depth, int alpha, int beta, bool isWhite)
     {
+        if (TranspositionTable.ContainsKey(board.ZobristKey))
+        {
+            TranspositionEntry entry = TranspositionTable[board.ZobristKey];
+            if (entry.Depth >= depth)
+            {
+                return entry.Score;
+            }
+        }
+        
+        
         if (depth == 0 || board.IsInCheckmate() || board.IsDraw())
         {
             return EvaluateBoard(board, isWhite);
@@ -84,6 +97,8 @@ public class MyBot : IChessBot
             if (alpha >= beta) { break; }
         }
         
+        TranspositionTable[board.ZobristKey] = new TranspositionEntry { Depth = depth, Score = bestScore };
+
         return bestScore;
     }
     
@@ -155,4 +170,10 @@ public class MyBot : IChessBot
     {
         Array.Sort(moveScores, moves, Comparer<int>.Create((a, b) => b.CompareTo(a)));
     }
+}
+
+public class TranspositionEntry
+{
+    public int Depth { get; set; }
+    public int Score { get; set; }
 }

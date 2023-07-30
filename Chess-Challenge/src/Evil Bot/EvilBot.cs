@@ -7,7 +7,7 @@ namespace ChessChallenge.Example
     // Plays randomly otherwise.
     public class EvilBot : IChessBot
     {
-        const int MAX_DEPTH = 5;
+        const int MAX_DEPTH = 4;
         int[] pieceValues = { 0, 100, 300, 300, 500, 900, 10000 };
         
         public int MoveCount { get; private set; }
