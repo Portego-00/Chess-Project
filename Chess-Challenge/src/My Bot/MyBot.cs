@@ -1,20 +1,30 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using ChessChallenge.API;
 
 public class MyBot : IChessBot
 {
-    const int MAX_DEPTH = 3;
+    const int MAX_DEPTH = 5;
     int[] pieceValues = { 0, 100, 300, 300, 500, 900, 10000 };
+    
+    public int MoveCount { get; private set; }
+
+    public MyBot()
+    {
+        MoveCount = 0;
+    }
 
     public Move Think(Board board, Timer timer)
     {
         Move[] allMoves = board.GetLegalMoves();
         bool isWhiteBot = board.IsWhiteToMove;
+        
+        OrderMoves(board, allMoves);
 
         // Get a random move out of all the moves
-        Move bestMove = allMoves[new Random().Next(allMoves.Length)];
+        Move bestMove = allMoves[0];
         
         int bestScore = int.MinValue;
         
@@ -37,12 +47,12 @@ public class MyBot : IChessBot
                 bestMove = move;
             }
         }
-
+        Console.WriteLine($"Total moves evaluated: {MoveCount}");
         return bestMove;
     }
     
     // Function to check if a move is a checkmate
-    bool IsCheckmate(Board board, Move move)
+    public bool IsCheckmate(Board board, Move move)
     {
         board.MakeMove(move);
         bool isCheckmate = board.IsInCheckmate();
@@ -51,15 +61,19 @@ public class MyBot : IChessBot
     }
     
     // Function Negamax with alpha-beta pruning
-    int NegaMax(Board board, int depth, int alpha, int beta, bool isWhite)
+    public int NegaMax(Board board, int depth, int alpha, int beta, bool isWhite)
     {
-        if (depth == 0) { return EvaluateBoard(board, isWhite); }
+        if (depth == 0 || board.IsInCheckmate() || board.IsDraw())
+        {
+            return EvaluateBoard(board, isWhite);
+        }
         
         int bestScore = int.MinValue;
         Move[] allMoves = board.GetLegalMoves();
 
         foreach (Move move in allMoves)
         {
+            MoveCount++;
             board.MakeMove(move);
             int score = -NegaMax(board, depth - 1, -beta, -alpha, !isWhite);
             board.UndoMove(move);
@@ -75,7 +89,7 @@ public class MyBot : IChessBot
     
     
     // Function to evaluate the board
-    int EvaluateBoard(Board board, bool isWhite)
+    public int EvaluateBoard(Board board, bool isWhite)
     {
         // Get the value of the pieces for white and for black
         int whiteMaterial = CountMaterial(board, true);
@@ -87,18 +101,58 @@ public class MyBot : IChessBot
     }
     
     // Function to count the material of the board
-    int CountMaterial(Board board, bool isWhite)
+    public int CountMaterial(Board board, bool isWhite)
     {
         int material = 0;
         for (int i = 0; i < 64; i++)
         {
             Square square = new Square(i);
             Piece piece = board.GetPiece(square);
-            if (piece != null && piece.IsWhite == isWhite)
+            if (piece.IsWhite == isWhite)
             {
                 material += pieceValues[(int)piece.PieceType];
             }
         }
         return material;
+    }
+
+    public void OrderMoves(Board board, Move[] moves)
+    {
+        int[] moveScores = new int[moves.Length];
+
+        for (int i = 0; i < moves.Length; i++)
+        {
+            int moveValueGuess = 0;
+            PieceType movePieceType = board.GetPiece(moves[i].StartSquare).PieceType;
+            PieceType capturePieceType = board.GetPiece(moves[i].TargetSquare).PieceType;
+
+            // If the move is a capture, add the value of the captured piece to the move value
+            if (capturePieceType != PieceType.None)
+            {
+                moveValueGuess = 10 * pieceValues[(int)capturePieceType] - pieceValues[(int)movePieceType];
+            }
+
+            if (moves[i].IsPromotion)
+            {
+                moveValueGuess += pieceValues[(int)moves[i].PromotionPieceType] - pieceValues[(int)movePieceType];
+            }
+
+            // Check if the position where we're moving is attacked by an opponent pawn
+            if (BitboardHelper.GetPawnAttacks(moves[i].TargetSquare, !board.IsWhiteToMove) != 0)
+            {
+                moveValueGuess -= pieceValues[(int)movePieceType];
+            }
+
+            // Store the move score in an array
+            moveScores[i] = moveValueGuess;
+        }
+
+        // Sort the moves based on move scores (descending order)
+        Sort(moves, moveScores);
+    }
+
+    public void Sort(Move[] moves, int[] moveScores)
+    {
+        Array.Sort(moveScores, moves, Comparer<int>.Create((a, b) => b.CompareTo(a)));
     }
 }
