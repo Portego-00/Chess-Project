@@ -12,15 +12,20 @@ public class MyBot : IChessBot
     private Dictionary<ulong, TranspositionEntry> TranspositionTable { get; set; }
     
     public int MoveCount { get; private set; }
+    public int TranspositionsFound { get; private set; }
 
     public MyBot()
     {
         MoveCount = 0;
+        TranspositionsFound = 0;
         TranspositionTable = new Dictionary<ulong, TranspositionEntry>();
     }
 
     public Move Think(Board board, Timer timer)
     {
+        MoveCount = 0;
+        TranspositionsFound = 0;
+        
         Move[] allMoves = board.GetLegalMoves();
         bool isWhiteBot = board.IsWhiteToMove;
         
@@ -51,6 +56,7 @@ public class MyBot : IChessBot
             }
         }
         Console.WriteLine($"Total moves evaluated: {MoveCount}");
+        Console.WriteLine($"Total transpositions found: {TranspositionsFound}");
         return bestMove;
     }
     
@@ -66,23 +72,24 @@ public class MyBot : IChessBot
     // Function Negamax with alpha-beta pruning
     public int NegaMax(Board board, int depth, int alpha, int beta, bool isWhite)
     {
-        if (TranspositionTable.ContainsKey(board.ZobristKey))
+        if (TranspositionTable.TryGetValue(board.ZobristKey, out var entry))
         {
-            TranspositionEntry entry = TranspositionTable[board.ZobristKey];
+            TranspositionsFound++;
             if (entry.Depth >= depth)
             {
                 return entry.Score;
             }
         }
-        
-        
+
         if (depth == 0 || board.IsInCheckmate() || board.IsDraw())
         {
             return EvaluateBoard(board, isWhite);
         }
-        
+
         int bestScore = int.MinValue;
         Move[] allMoves = board.GetLegalMoves();
+        
+        OrderMoves(board, allMoves);
 
         foreach (Move move in allMoves)
         {
@@ -90,14 +97,18 @@ public class MyBot : IChessBot
             board.MakeMove(move);
             int score = -NegaMax(board, depth - 1, -beta, -alpha, !isWhite);
             board.UndoMove(move);
-            
+
             bestScore = Math.Max(bestScore, score);
+
             alpha = Math.Max(alpha, score);
-            
+
             if (alpha >= beta) { break; }
         }
-        
-        TranspositionTable[board.ZobristKey] = new TranspositionEntry { Depth = depth, Score = bestScore };
+
+        if (entry == null || entry.Depth < depth)
+        {
+            TranspositionTable[board.ZobristKey] = new TranspositionEntry { Depth = depth, Score = bestScore };
+        }
 
         return bestScore;
     }
@@ -137,29 +148,21 @@ public class MyBot : IChessBot
 
         for (int i = 0; i < moves.Length; i++)
         {
-            int moveValueGuess = 0;
             PieceType movePieceType = board.GetPiece(moves[i].StartSquare).PieceType;
             PieceType capturePieceType = board.GetPiece(moves[i].TargetSquare).PieceType;
 
-            // If the move is a capture, add the value of the captured piece to the move value
             if (capturePieceType != PieceType.None)
             {
-                moveValueGuess = 10 * pieceValues[(int)capturePieceType] - pieceValues[(int)movePieceType];
+                int attackerValue = pieceValues[(int)movePieceType];
+                int victimValue = pieceValues[(int)capturePieceType];
+                // Subtracting the attacker value from victim value to apply the MVV-LVA heuristic
+                moveScores[i] = victimValue * 10 - attackerValue; 
             }
-
-            if (moves[i].IsPromotion)
+            else
             {
-                moveValueGuess += pieceValues[(int)moves[i].PromotionPieceType] - pieceValues[(int)movePieceType];
+                // Non-capturing moves can have a standard low priority, we use 0 here.
+                moveScores[i] = 0; 
             }
-
-            // Check if the position where we're moving is attacked by an opponent pawn
-            if (BitboardHelper.GetPawnAttacks(moves[i].TargetSquare, !board.IsWhiteToMove) != 0)
-            {
-                moveValueGuess -= pieceValues[(int)movePieceType];
-            }
-
-            // Store the move score in an array
-            moveScores[i] = moveValueGuess;
         }
 
         // Sort the moves based on move scores (descending order)

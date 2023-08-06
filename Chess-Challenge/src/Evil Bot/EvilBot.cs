@@ -19,6 +19,8 @@ namespace ChessChallenge.Example
 
         public Move Think(Board board, Timer timer)
         {
+            MoveCount = 0;
+            
             Move[] allMoves = board.GetLegalMoves();
             bool isWhiteBot = board.IsWhiteToMove;
 
